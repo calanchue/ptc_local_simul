@@ -1,5 +1,5 @@
 # ptc_local_simul
-Particle filer localization + 2d robot simulator, written in slick 2d java. 
+Particle filter localization + 2d robot simulator, written in slick 2d java. 
 
 ## component 
 - Robot simulater : gather sensor information.

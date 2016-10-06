@@ -1,6 +1,8 @@
 # ptc_local_simul
 Particle filter localization + 2d robot simulator, written in slick 2d java. 
 
+robot simulater and actual location logic are completely divied by tcp connection. This project is written in mind that physical lejos robot will be attached.
+
 ## component 
 - Robot simulater : gather sensor information.
 - Remote simulater : Particle filter simulater. this will process sensoro information from the robot to localize the location of the robot in map

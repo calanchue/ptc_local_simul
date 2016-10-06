@@ -10,6 +10,12 @@ Particle filer localization + 2d robot simulator, written in slick 2d java.
 3. pressing '0' key to load map in both Simulater
 
 ## how to use
+
+### Editing map
+ - mouse dragging : add white box to map
+ - 0 key : save map
+ - 1 key : load map
+
 ### robot simulater
 ![alt tag](https://github.com/calanchue/ptc_local_simul/blob/master/readme/robot_simul_2.PNG)
 

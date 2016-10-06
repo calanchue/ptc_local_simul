@@ -12,8 +12,12 @@ Particle filer localization + 2d robot simulator, written in slick 2d java.
 ## how to use
 ### robot simulater
 ![alt tag](https://github.com/calanchue/ptc_local_simul/blob/master/readme/robot_simul_2.PNG)
+control
+
 - arrow key : move, rotation
 - space key : gather sensor information
+
+legend
 
 - big blue circle : actual robot location
 - small blue circle : sensor infromation gathered
@@ -21,6 +25,8 @@ Particle filer localization + 2d robot simulator, written in slick 2d java.
 
 ###remote simulater
 ![alt tag](https://github.com/calanchue/ptc_local_simul/blob/master/readme/ptc_simul_2.PNG)
+
+legend
 
 - big blue circle : actual robot location
 - small blue circle : sensor infromation gathered

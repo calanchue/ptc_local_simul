@@ -1,7 +1,7 @@
 # ptc_local_simul
 Particle filter localization + 2d robot simulator, written in slick 2d java. 
 
-robot simulater and actual location logic are completely divied by tcp connection. This project is written in mind that physical lejos robot will be attached.
+robot simulater and actual localization algorithm are completely divied by network connection. This project is written in mind that physical lejos robot will be attached by network
 
 ## component 
 - Robot simulater : gather sensor information.

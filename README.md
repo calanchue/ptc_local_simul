@@ -5,7 +5,7 @@ robot simulater and actual localization algorithm are completely divied by netwo
 
 ## component 
 - Robot simulater : gather sensor information.
-- Remote simulater : Particle filter simulater. this will process sensoro information from the robot to localize the location of the robot in map
+- Remote simulater : Particle filter simulater. this will process sensor information from the robot to localize the location of the robot in the map
 ## how to run
 1. run RobotSimul.java to launch Robot simulater. 
 2. run RemoteSimul.java to launch Remote simulater. 

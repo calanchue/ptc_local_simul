@@ -17,8 +17,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.rmi.*;
-import java.rmi.Naming; 
-import java.rmi.RemoteException; 
 import java.rmi.server.UnicastRemoteObject;
 
 public class RemoteSimul extends BasicGame{
@@ -52,6 +50,9 @@ public class RemoteSimul extends BasicGame{
 	
 	int probSize = 1000;
 	
+	ArrayList<AffineObject> robotList = new ArrayList<AffineObject>();	
+	AffineObject masterRobot, currRobot;
+	
 	
 	public static Socket socket;
 	public static class Receiver extends Thread{
@@ -68,15 +69,22 @@ public class RemoteSimul extends BasicGame{
 	            	ObjectInputStream objectInput = new ObjectInputStream(socket.getInputStream()); //Error Line!
 	                String command= objectInput.readUTF();
 	                if(command.equals("sample")){
+	                	int robotIdx = objectInput.readInt();
 		                Object object = objectInput.readObject();
 		                LinkedList<Point2D> results = (LinkedList<Point2D>) object;
-		                System.out.println("receive ok : " + results.size());
-		                bg.getSampleFromOut(results);
+		                System.out.println("receive sp : "+robotIdx+"/" + results.size());
+		                bg.getSampleFromOut(robotIdx, results);
 	                }else if(command.equals("move")){
+	                	int robotIdx = objectInput.readInt();
 	                	Object object = objectInput.readObject();
 		                Float[] results = (Float[]) object;
-		                System.out.println("receive ok : " + results[0].toString() + "/" + results[1].toString());
-		                bg.sampleMoveProces(results[0], results[1]);
+		                System.out.println("receive mv : " +robotIdx +  "/" + results[0].toString() + "/" + results[1].toString());
+		                bg.sampleMoveProces(robotIdx, results[0], results[1]);
+	                }else if(command.equals("robotInit")){
+	                	Object object = objectInput.readObject();
+	                	Point2D results = (Point2D) object;
+		                System.out.println("receive ri : " + results.toString());
+		                bg.initRobot(results);
 	                }
 	                
 
@@ -105,12 +113,6 @@ public class RemoteSimul extends BasicGame{
 		appgc.start();
 		
 	}
-	
-	public interface Hello extends java.rmi.Remote
-	{
-		String sayHello() throws RemoteException;
-	}
-
 	
 	public boolean bounceOff = false;
 	public float resol = 0.5F;
@@ -231,12 +233,21 @@ public class RemoteSimul extends BasicGame{
 	public float goX = 0F;
 	public float goY = 0F;
 	
-	public AffineObject robot_actual = new AffineObject(AffineTransform.getTranslateInstance(DISPLAY_X*3.0/4.0, DISPLAY_Y*1.0/4.0));
+	//public AffineObject robot_actual = new AffineObject(AffineTransform.getTranslateInstance(DISPLAY_X*3.0/4.0, DISPLAY_Y*1.0/4.0));
 	public ArrayList<AffineObject> robot_expected_list = new ArrayList<AffineObject>();
 	
 	
 	public void renderOval(Graphics g, Point2D point, float ovalSize){
 		g.drawOval((float)point.getX()-ovalSize/2.0F, (float)point.getY()-ovalSize/2.0F, ovalSize, ovalSize);
+	}
+	
+	public void drawRobot(Graphics g, AffineObject robot_actual){
+		float robotOvalSize = 10.0F;
+				
+		//draw_master_robot
+		renderOval(g, robot_actual.position, robotOvalSize);
+		g.drawLine((float)robot_actual.position.getX(), (float)robot_actual.position.getY(), 
+				(float)robot_actual.nose_position.getX(), (float)robot_actual.nose_position.getY());
 	}
 	
 	public GameContainer gameContainer;
@@ -253,7 +264,7 @@ public class RemoteSimul extends BasicGame{
 			radian = Math.toRadians(i);
 			float diffx=(float)Math.cos(radian);
 			float diffy=(float)Math.sin(radian);
-			rayCast((float)robot_actual.position.getX(), (float)robot_actual.position.getY(), diffx, diffy, g, stepLimit, gc);
+			rayCast((float)currRobot.position.getX(), (float)currRobot.position.getY(), diffx, diffy, g, stepLimit, gc);
 		}		
 	
 		// render wall
@@ -302,13 +313,8 @@ public class RemoteSimul extends BasicGame{
 		
 		// render actual robot position
 		g.setColor(Color.blue);		
-				
-		//g.drawOval((float)robot_actual.position.getX()-robotOvalSize/2.0F, (float)robot_actual.position.getY()-robotOvalSize/2.0F, robotOvalSize, robotOvalSize);
-		renderOval(g, robot_actual.position, robotOvalSize);
-		g.drawLine((float)robot_actual.position.getX(), (float)robot_actual.position.getY(), 
-				(float)robot_actual.nose_position.getX(), (float)robot_actual.nose_position.getY());
-		//g.drawOval((float)robot_actual.nose_position.getX()-noseOvalSize/2.0F, (float)robot_actual.nose_position.getY()-noseOvalSize/2.0F, noseOvalSize, noseOvalSize);
-		//g.fillRect(rayPointX - 4, rayPointY - 4, 8, 8);
+			
+		drawRobot(g, masterRobot);
 		
 		LinkedList<Point2D> forRender = getSampleForRender();
 		for(Point2D sample : forRender){
@@ -435,7 +441,7 @@ public class RemoteSimul extends BasicGame{
 		realSampleListForRender = list;
 	}
 	
-	public synchronized void getSampleFromOut(LinkedList<Point2D> results){
+	public synchronized void getSampleFromOut(int robotIdx, LinkedList<Point2D> results){
 		realSampleList = results;
 		System.out.println("rest render sample : " + results.toString());
 		System.out.println("robot_actual : " + robot_actual.t.toString());									
@@ -518,7 +524,7 @@ public class RemoteSimul extends BasicGame{
 	}
 	
 	public static Random smr = new Random();
-	public synchronized void sampleMoveProces(float move, float rotation){
+	public synchronized void sampleMoveProces(int robotIdx, float move, float rotation){
 		
 		for (AffineObject ao: probPosList){
 			if (move != 0){
@@ -537,19 +543,13 @@ public class RemoteSimul extends BasicGame{
 		}
 	}
 	
+	public synchronized void initRobot(Point2D position){
+		masterRobot = new AffineObject(AffineTransform.getTranslateInstance(position.getX(), position.getY()));
+		currRobot = masterRobot;
+		robotList.add(masterRobot);		
+	}
+	
 	public void keyPressed(int key, char c) {
-//		if (c == 'h' || c == 'H') {
-//			gradient = !gradient;
-//		}
-//		if (c == 'j' || c == 'J') {
-//			bounceOff = !bounceOff;
-//		}
-//		if (c == 'k' || c == 'K') {
-//			infiniteBounce = !infiniteBounce;
-//		}
-//		if (c == 'u' || c == 'U') {
-//			renderPlat = !renderPlat;
-//		}
 		if(c=='1'){
 			System.out.println("load map");
 	        loadMap();
@@ -558,27 +558,7 @@ public class RemoteSimul extends BasicGame{
 			System.out.println("save map");
 	        saveMap();
 		}
-		
-		float moveSize = 1.0F;
-		if (Keyboard.isKeyDown(Keyboard.KEY_LEFT)) {
-			robot_actual.rotate((float)(-Math.PI*2.0/16.0));			
-		}
-		if (Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) {
-			robot_actual.rotate((float)(Math.PI*2.0/16.0));
-			//rayPointX += delta * moveSize;	
-		}
-		if (Keyboard.isKeyDown(Keyboard.KEY_UP)) {
-			robot_actual.translate(0, moveSize*5);
-			//rayPointY -= delta * moveSize;
-		}
-		if (Keyboard.isKeyDown(Keyboard.KEY_DOWN)) {
-			robot_actual.translate(0, -moveSize*5);
-			//rayPointY += delta * moveSize;
-		}
-		
-		if(Keyboard.isKeyDown(Keyboard.KEY_SPACE)){
-			
-		}
+	
 	
 	}
 	

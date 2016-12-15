@@ -35,15 +35,26 @@ public class RobotSimul extends BasicGame {
 	float alpha = 96F;
 	
 	
-	float moveValue = 5.0F;
-	float rotateValue = (float)(-Math.PI*2.0/16.0); 
+	float moveValue = 5.0f;
+	float rotateValue = (float)(-Math.PI*2.0/16.0);
+	
+	float moveError = moveValue * 0.4f;
+	float rotateError = moveValue * 0.4f;
+	
+	float obsMoveError = moveValue * 0.01f; //observing other robot error
+	float obsRotateError = moveValue * 0.01f;
+	
 	float sampleErrorSize = 3F;	
 	
 	public static final float maxSense = 100f;
 	
 	public static Socket socket;
 
-
+	
+	ArrayList<AffineObject> robotList = new ArrayList<AffineObject>();
+	AffineObject masterRobot;
+	AffineObject currRobot;
+	int robotIdx = 0;
 	
 	
 	public static void main(String[] args) throws SlickException, IOException {
@@ -58,17 +69,32 @@ public class RobotSimul extends BasicGame {
 		
 	}
 
+
 	
 	public boolean bounceOff = false;
 	public float resol = 0.5F;
 	
 	
+	public void sendRobotInit(Point2D robotPosition){
+		 try 
+        {
+            ObjectOutputStream objectOutput = new ObjectOutputStream(socket.getOutputStream());
+            objectOutput.writeUTF("robotInit");
+            objectOutput.writeObject(robotPosition);               
+            System.out.println("send ri: " + robotPosition.toString());
+        } 
+        catch (IOException e) 
+        {
+            e.printStackTrace();
+        } 
+	}
 	
-	public void sendSample(List<Point2D> sampleList){
+	public void sendSample(int robotIdx, List<Point2D> sampleList){
 		 try 
          {
              ObjectOutputStream objectOutput = new ObjectOutputStream(socket.getOutputStream());
              objectOutput.writeUTF("sample");
+             objectOutput.writeInt(robotIdx);
              objectOutput.writeObject(sampleList);               
              System.out.println("send ok : " + sampleList.toString());
          } 
@@ -78,12 +104,13 @@ public class RobotSimul extends BasicGame {
          } 
 	}
 	
-	public void sendMove(float move, float rotate){
+	public void sendMove(int robotIdx, float move, float rotate){
 		 try 
         {
             ObjectOutputStream objectOutput = new ObjectOutputStream(socket.getOutputStream());
             objectOutput.writeUTF("move");
             Float[] data = new Float[]{move, rotate};
+            objectOutput.writeInt(robotIdx);
             objectOutput.writeObject(data);               
             System.out.println("send ok : " + data.toString());
         } 
@@ -179,7 +206,7 @@ public class RobotSimul extends BasicGame {
 			radian = Math.toRadians(i);
 			float diffx=(float)Math.cos(radian);
 			float diffy=(float)Math.sin(radian);
-			Point2D samplePoint = rayCast((float)robot_actual.position.getX(), (float)robot_actual.position.getY(), diffx, diffy, null, stepLimit, gc);
+			Point2D samplePoint = rayCast((float)sampler.position.getX(), (float)sampler.position.getY(), diffx, diffy, null, stepLimit, gc);
 			if(samplePoint != null){
 				samplePoint.setLocation(samplePoint.getX()+random.nextGaussian()*sampleErrorSize, samplePoint.getY()+random.nextGaussian()*sampleErrorSize);
 				invT.transform(samplePoint , samplePoint);
@@ -210,12 +237,21 @@ public class RobotSimul extends BasicGame {
 	public float goX = 0F;
 	public float goY = 0F;
 	
-	public AffineObject robot_actual = new AffineObject(AffineTransform.getTranslateInstance(DISPLAY_X*3.0/4.0, DISPLAY_Y*1.0/4.0));
+	//public AffineObject robot_actual = new AffineObject(AffineTransform.getTranslateInstance(DISPLAY_X*3.0/4.0, DISPLAY_Y*1.0/4.0));
 	public ArrayList<AffineObject> robot_expected_list = new ArrayList<AffineObject>();
 	
 	
 	public void renderOval(Graphics g, Point2D point, float ovalSize){
 		g.drawOval((float)point.getX()-ovalSize/2.0F, (float)point.getY()-ovalSize/2.0F, ovalSize, ovalSize);
+	}
+	
+	public void drawRobot(Graphics g, AffineObject robot_actual){
+		float robotOvalSize = 10.0F;
+				
+		//draw_master_robot
+		renderOval(g, robot_actual.position, robotOvalSize);
+		g.drawLine((float)robot_actual.position.getX(), (float)robot_actual.position.getY(), 
+				(float)robot_actual.nose_position.getX(), (float)robot_actual.nose_position.getY());
 	}
 	
 	public GameContainer gameContainer;
@@ -225,15 +261,17 @@ public class RobotSimul extends BasicGame {
 		
 		g.setColor(new Color(255, 0, 0, (int)alpha));
 		g.setLineWidth(1f);
-				
+		
+		
+		//draw sampling line		
 		int delta = 360/8;
 		for(int i=0; i<360; i+=delta){
 			double radian;
 			radian = Math.toRadians(i);
 			float diffx=(float)Math.cos(radian);
 			float diffy=(float)Math.sin(radian);
-			rayCast((float)robot_actual.position.getX(), (float)robot_actual.position.getY(), diffx, diffy, g, stepLimit, gc);
-		}		
+			rayCast((float)currRobot.position.getX(), (float)currRobot.position.getY(), diffx, diffy, g, stepLimit, gc);
+		}	
 	
 		// render wall
 		if (renderPlat) {
@@ -248,18 +286,13 @@ public class RobotSimul extends BasicGame {
 		
 		
 		// render actual robot position
-		g.setColor(Color.blue);
-		float robotOvalSize = 10.0F;
-		float noseOvalSize = 5.0F;
+		g.setColor(Color.blue);		
 		float sampleOvalSize = 5.0F;
 				
 				
-		//g.drawOval((float)robot_actual.position.getX()-robotOvalSize/2.0F, (float)robot_actual.position.getY()-robotOvalSize/2.0F, robotOvalSize, robotOvalSize);
-		renderOval(g, robot_actual.position, robotOvalSize);
-		g.drawLine((float)robot_actual.position.getX(), (float)robot_actual.position.getY(), 
-				(float)robot_actual.nose_position.getX(), (float)robot_actual.nose_position.getY());
-		//g.drawOval((float)robot_actual.nose_position.getX()-noseOvalSize/2.0F, (float)robot_actual.nose_position.getY()-noseOvalSize/2.0F, noseOvalSize, noseOvalSize);
-		//g.fillRect(rayPointX - 4, rayPointY - 4, 8, 8);
+		//draw_master robot
+		drawRobot(g, masterRobot);
+		
 		
 		for(Point2D sample : sampleForRender){
 			if(sample != null)
@@ -294,13 +327,16 @@ public class RobotSimul extends BasicGame {
 
 	@Override
 	public void init(GameContainer g) throws SlickException {
-		
+		//init master robot
+		 masterRobot = initRobot(DISPLAY_X*3.0/4.0, DISPLAY_Y*1.0/4.0);
+		 currRobot = masterRobot;
 	}
 	
 	
 	
 	public boolean reactLeft = true;
 	public boolean reactRight = true;
+	public boolean reactMiddle = true;
 	
 	public boolean GetCollision(float playerX, float playerY, float playerWidth,
             float playerHeight, float EnemyX, float EnemyY, float EnemyWidth,
@@ -353,6 +389,13 @@ public class RobotSimul extends BasicGame {
 	
 	LinkedList<Point2D> sampleForRender = new LinkedList<Point2D>();
 	
+	public AffineObject initRobot(double d, double e){
+		AffineObject robot_affine = new AffineObject(AffineTransform.getTranslateInstance(d, e));
+		robotList.add(robot_affine);
+		return robot_affine;
+	}
+	
+	Random rnd = new Random();
 	public void keyPressed(int key, char c) {
 //		if (c == 'h' || c == 'H') {
 //			gradient = !gradient;
@@ -374,33 +417,65 @@ public class RobotSimul extends BasicGame {
 			System.out.println("save map");
 	        saveMap();
 		}
+		if(c=='n'){
+			robotIdx = (robotIdx+1)%robotList.size();
+			currRobot = robotList.get(robotIdx);
+			System.out.println("selectNextRobot");
+		}
+		
+		boolean obs;
+		if (robotList.size() ==1 ){
+			obs = false;
+		}else{
+			obs = true;
+		}
 		
 		if (Keyboard.isKeyDown(Keyboard.KEY_LEFT)) {
-			robot_actual.rotate(rotateValue);			
-			sendMove(0, rotateValue);
+			float realRotate = rotateValue + (rnd.nextFloat()*2-1)*rotateError;			
+			currRobot.rotate(realRotate);
+			if(obs == false){
+				sendMove(robotIdx, 0, rotateValue);	
+			}else{
+				sendMove(robotIdx, 0, realRotate + (rnd.nextFloat()*2-1)*obsRotateError);
+			}
 		}
 		if (Keyboard.isKeyDown(Keyboard.KEY_RIGHT)) {
-			robot_actual.rotate(-rotateValue);
-			sendMove(0, -rotateValue);
+			float realRotate = -rotateValue + (rnd.nextFloat()*2-1)*rotateError;			
+			currRobot.rotate(realRotate);
+			if(obs == false){
+				sendMove(robotIdx, 0, -rotateValue);	
+			}else{
+				sendMove(robotIdx, 0, realRotate + (rnd.nextFloat()*2-1)*obsRotateError);
+			}
 		}
 		if (Keyboard.isKeyDown(Keyboard.KEY_UP)) {
-			robot_actual.translate(0, moveValue);
-			sendMove(moveValue, 0);
+			float realMove = moveValue + (rnd.nextFloat()*2-1)*rotateError;			
+			currRobot.translate(0, realMove);
+			if(obs == false){
+				sendMove(robotIdx, moveValue, 0);	
+			}else{
+				sendMove(robotIdx, realMove + (rnd.nextFloat()*2-1)*obsMoveError ,0);
+			}
 		}
 		if (Keyboard.isKeyDown(Keyboard.KEY_DOWN)) {
-			robot_actual.translate(0, -moveValue);
-			sendMove(-moveValue, 0);
+			float realMove = -moveValue + (rnd.nextFloat()*2-1)*rotateError;			
+			currRobot.translate(0, realMove);
+			if(obs == false){
+				sendMove(robotIdx, -moveValue, 0);	
+			}else{
+				sendMove(robotIdx, realMove + (rnd.nextFloat()*2-1)*obsMoveError ,0);
+			}
 		}
 		
 		if(Keyboard.isKeyDown(Keyboard.KEY_SPACE)){
-			LinkedList<Point2D> results = sampleAround(gameContainer, robot_actual);
+			LinkedList<Point2D> results = sampleAround(gameContainer, currRobot);
 			//sampleForRender = new LinkedList<Point2D>();
-			sendSample(results);
-			System.out.println("robot_actual : " + robot_actual.t.toString());
-			System.out.println("robot_actual : " + robot_actual.position.toString());
+			sendSample(robotIdx, results);
+			//System.out.println("robot_actual : " + currRobot.t.toString());
+			//System.out.println("robot_actual : " + currRobot.position.toString());
 			for(Point2D result : results){
 				if(result != null){
-					robot_actual.t.transform(result, result);
+					currRobot.t.transform(result, result);
 				}
 				//sampleForRender.add(result);
 			}
@@ -493,30 +568,24 @@ public class RobotSimul extends BasicGame {
 		goX = Mouse.getX();
 		goY = gc.getHeight() - Mouse.getY();
 		
-
-
-//		if (Keyboard.isKeyDown(Keyboard.KEY_Q)) {
-//			resol += delta * .0005F;
-//		}
-//		if (Keyboard.isKeyDown(Keyboard.KEY_A)) {
-//			if (resol > 0.01F && delta * 0.0005F < 0.01F) resol -= delta * .0005F;
-//		}
-//		if (Keyboard.isKeyDown(Keyboard.KEY_W)) {
-//			stepLimit += 5;
-//		}
-//		if (Keyboard.isKeyDown(Keyboard.KEY_S)) {
-//			if (stepLimit > 0) stepLimit -= 5;
-//		}
-//		if (Keyboard.isKeyDown(Keyboard.KEY_E)) {
-//			if (alpha < 256) alpha += 0.1F;
-//		}
-//		if (Keyboard.isKeyDown(Keyboard.KEY_D)) {
-//			if (alpha > 0) alpha -= 0.1F;
-//		}
-
+		if (Mouse.isButtonDown(1)) {
+			if (reactMiddle){
+				reactMiddle = false;	
+			}
+			if(reactMiddle){
+				initRobot(Mouse.getX(), Mouse.getY());
+				reactMiddle = true;
+			}
+			
+		}
+		
 
 
 		
 	}
+	
+	
+
+
 
 }

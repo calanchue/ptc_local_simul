@@ -120,6 +120,35 @@ public class RobotSimul extends BasicGame {
         } 
 	}
 	
+	public void sendRelatvie(){
+		int robotSize = robotList.size();
+		ArrayList<AffineTransform> relativeAFList = new ArrayList<AffineTransform>();
+		for(int i=1 ;i<robotSize; i++){
+			AffineObject robot = robotList.get(i);
+			AffineTransform relativeAffine = (AffineTransform)masterRobot.t.clone();
+			try {
+				relativeAffine.invert();
+			} catch (NoninvertibleTransformException e) {
+				e.printStackTrace();
+			}
+			relativeAffine.concatenate(robot.t);
+			relativeAFList.add(relativeAffine);
+		}
+		
+		 try 
+	        {
+	            ObjectOutputStream objectOutput = new ObjectOutputStream(socket.getOutputStream());
+	            objectOutput.writeUTF("relative");
+	            objectOutput.writeObject(relativeAFList);
+	                           
+	            System.out.println("send relative");
+	        } 
+	        catch (IOException e) 
+	        {
+	            e.printStackTrace();
+	        }
+	}
+	
 	public Point2D rayCast(float startx, float starty, float diffx, float diffy, Graphics g, int steplimit, GameContainer gc) {
 		float dx = startx;
 		float dy = starty;

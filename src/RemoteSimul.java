@@ -442,15 +442,16 @@ public class RemoteSimul extends BasicGame{
 	}
 	
 	public synchronized void getSampleFromOut(int robotIdx, LinkedList<Point2D> results){
+		currRobot = robotList.get(robotIdx);
 		realSampleList = results;
-		System.out.println("rest render sample : " + results.toString());
-		System.out.println("robot_actual : " + robot_actual.t.toString());									
+		//System.out.println("rest render sample : " + results.toString());
+		//System.out.println("robot_actual : " + robot_actual.t.toString());									
 		LinkedList<Point2D> realSampleListForRenderTemp = new LinkedList<Point2D>();
 		
 		for(Point2D result : results){
 			Point2D renderPoint = new Point2D.Double();
 			if(result != null)
-				robot_actual.t.transform(result, renderPoint);
+				currRobot.t.transform(result, renderPoint);
 			realSampleListForRenderTemp.add(renderPoint);
 		}
 		setSampleForRender(realSampleListForRenderTemp);

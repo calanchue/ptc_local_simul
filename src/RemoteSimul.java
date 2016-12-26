@@ -43,8 +43,8 @@ public class RemoteSimul extends BasicGame{
 	float moveValue = 5.0F;
 	float rotateValue = (float)(-Math.PI*2.0/16.0); 
 	float sampleErrorSize = 3F;	
-	float moveErrorSize = (float) (moveValue*0.3F);
-	float rotateErrorSize = (float)(rotateValue*0.3F);
+	float moveErrorSize = (float) (moveValue*0.1F);
+	float rotateErrorSize = (float)(rotateValue*0.1F);
 	
 	boolean renderSampleFromProb = true;
 	
@@ -72,8 +72,10 @@ public class RemoteSimul extends BasicGame{
 	                	int robotIdx = objectInput.readInt();
 		                Object object = objectInput.readObject();
 		                LinkedList<Point2D> results = (LinkedList<Point2D>) object;
+		                Object object2 = objectInput.readObject();
+		                ArrayList<AffineTransform> relativeList = (ArrayList<AffineTransform>)object2;
 		                System.out.println("receive sp : "+robotIdx+"/" + results.size());
-		                bg.getSampleFromOut(robotIdx, results);
+		                bg.getSampleFromOut(robotIdx, results, relativeList);
 	                }else if(command.equals("move")){
 	                	int robotIdx = objectInput.readInt();
 	                	Object object = objectInput.readObject();
@@ -258,14 +260,14 @@ public class RemoteSimul extends BasicGame{
 		g.setColor(new Color(255, 0, 0, (int)alpha));
 		g.setLineWidth(1f);
 				
-		int delta = 360/8;
-		for(int i=0; i<360; i+=delta){
-			double radian;
-			radian = Math.toRadians(i);
-			float diffx=(float)Math.cos(radian);
-			float diffy=(float)Math.sin(radian);
-			rayCast((float)currRobot.position.getX(), (float)currRobot.position.getY(), diffx, diffy, g, stepLimit, gc);
-		}		
+//		int delta = 360/8;
+//		for(int i=0; i<360; i+=delta){
+//			double radian;
+//			radian = Math.toRadians(i);
+//			float diffx=(float)Math.cos(radian);
+//			float diffy=(float)Math.sin(radian);
+//			rayCast((float)currRobot.position.getX(), (float)currRobot.position.getY(), diffx, diffy, g, stepLimit, gc);
+//		}		
 	
 		// render wall
 		if (renderPlat) {
@@ -314,7 +316,7 @@ public class RemoteSimul extends BasicGame{
 		// render actual robot position
 		g.setColor(Color.blue);		
 			
-		drawRobot(g, masterRobot);
+		//drawRobot(g, masterRobot);
 		
 		LinkedList<Point2D> forRender = getSampleForRender();
 		for(Point2D sample : forRender){
@@ -331,6 +333,14 @@ public class RemoteSimul extends BasicGame{
 		double meanNoseY = sumProbNoseY/(double)probSize;
 		renderOval(g, new Point2D.Double(meanProbX, meanProbY), robotOvalSize);
 		g.drawLine((float)meanProbX,(float)meanProbY,(float)meanNoseX,(float)meanNoseY);
+		
+		for(int i = 1 ; i < otherBodyForRenderList.size() ; i++){
+			Point2D  nose = otherNoseForRenderList.get(i);
+			Point2D body = otherBodyForRenderList.get(i);
+			renderOval(g, new Point2D.Double(body.getX(), body.getY()), robotOvalSize);
+			g.drawLine((float)body.getX(),(float)body.getY(),(float)nose.getX(),(float)nose.getY());
+			g.drawString(""+i, (float)body.getX(), (float)body.getY());
+		}
 		
 		
 		if (dragging) {
@@ -432,6 +442,8 @@ public class RemoteSimul extends BasicGame{
 	
 	LinkedList<Point2D> realSampleListForRender = new LinkedList<Point2D>();
 	LinkedList<Point2D> realSampleList = new LinkedList<Point2D>();
+	LinkedList<Point2D> otherNoseForRenderList = new LinkedList<Point2D>();
+	LinkedList<Point2D> otherBodyForRenderList = new LinkedList<Point2D>();
 	
 	public synchronized LinkedList<Point2D> getSampleForRender(){
 		return realSampleListForRender;
@@ -441,22 +453,62 @@ public class RemoteSimul extends BasicGame{
 		realSampleListForRender = list;
 	}
 	
-	public synchronized void getSampleFromOut(int robotIdx, LinkedList<Point2D> results){
+	public synchronized void getSampleFromOut(int robotIdx, LinkedList<Point2D> results, ArrayList<AffineTransform> relativeList){
 		currRobot = robotList.get(robotIdx);
-		realSampleList = results;
+		
 		//System.out.println("rest render sample : " + results.toString());
 		//System.out.println("robot_actual : " + robot_actual.t.toString());									
 		LinkedList<Point2D> realSampleListForRenderTemp = new LinkedList<Point2D>();
 		
-		for(Point2D result : results){
-			Point2D renderPoint = new Point2D.Double();
-			if(result != null)
-				currRobot.t.transform(result, renderPoint);
-			realSampleListForRenderTemp.add(renderPoint);
-		}
-		setSampleForRender(realSampleListForRenderTemp);
+//		for(Point2D result : results){
+//			Point2D renderPoint = new Point2D.Double();
+//			if(result != null)
+//				currRobot.t.transform(result, renderPoint);
+//			realSampleListForRenderTemp.add(renderPoint);
+//		}
+//		
+//		setSampleForRender(realSampleListForRenderTemp);
 		System.out.println("sample for render : " + realSampleListForRender.toString());
+		
+		realSampleList = results;
+		
 		resampling();
+		
+		
+		//rendering mean prob robot position
+		double sumProbX = 0;
+		double sumProbY = 0;
+		double sumProbNoseX = 0;
+		double sumProbNoseY = 0;		
+		for(AffineObject ao : probPosList){
+			sumProbX += ao.position.getX();
+			sumProbY += ao.position.getY();
+			sumProbNoseX += ao.nose_position.getX();
+			sumProbNoseY += ao.nose_position.getY();
+		}
+		
+		double meanProbX = sumProbX/(double)probSize;
+		double meanProbY = sumProbY/(double)probSize;
+		double meanNoseX = sumProbNoseX/(double)probSize;
+		double meanNoseY = sumProbNoseY/(double)probSize;
+		
+		
+		otherBodyForRenderList.clear();
+		otherNoseForRenderList.clear();
+		AffineTransform meanAffine = AffineTransform.getTranslateInstance(meanProbX, meanProbY);
+		meanAffine.rotate(meanNoseY, meanNoseX);
+		System.out.println("gsfo : relateive_len : " + relativeList.size());
+		for( AffineTransform relAffine : relativeList ){
+			AffineTransform renderAffine = (AffineTransform) meanAffine.clone();
+			renderAffine.concatenate(relAffine);
+			Point2D body = new Point2D.Double(0.0, 0.0);
+			Point2D nose = new Point2D.Double(0.0, 1.0);
+			renderAffine.transform(body, body);
+			renderAffine.transform(nose, nose);
+			otherBodyForRenderList.add(body);
+			otherNoseForRenderList.add(nose);
+		}
+		System.out.println("gsfo : other_len : " + otherBodyForRenderList.size());
 	}
 	
 	LinkedList<Point2D> sampleFromProbForRender = new LinkedList<>();
@@ -476,7 +528,7 @@ public class RemoteSimul extends BasicGame{
 					for(Point2D result : results){
 						Point2D renderPoint = new Point2D.Double();
 						ao.t.transform(result, renderPoint);
-						System.out.printf("render point : %s", renderPoint.toString());
+						//System.out.printf("render point : %s", renderPoint.toString());
 						//robot_actual.t.transform(result, result);
 						sampleFromProbForRenderTemp.add(renderPoint);	
 					}					
@@ -526,7 +578,7 @@ public class RemoteSimul extends BasicGame{
 	
 	public static Random smr = new Random();
 	public synchronized void sampleMoveProces(int robotIdx, float move, float rotation){
-		
+		AffineObject movingRobot = robotList.get(robotIdx);
 		for (AffineObject ao: probPosList){
 			if (move != 0){
 				ao.translate(0, move+(float)smr.nextGaussian()*moveErrorSize);		
@@ -537,12 +589,15 @@ public class RemoteSimul extends BasicGame{
 		}
 		
 		if (move != 0){
-			robot_actual.translate(0, move);		
+			movingRobot.translate(0, move);		
 		}
 		if (rotation!=0){
-			robot_actual.rotate(rotation);	
+			movingRobot.rotate(rotation);	
 		}
 	}
+	
+	
+	boolean firstInit = false;
 	
 	public synchronized void initRobot(Point2D position){
 		masterRobot = new AffineObject(AffineTransform.getTranslateInstance(position.getX(), position.getY()));
@@ -559,10 +614,19 @@ public class RemoteSimul extends BasicGame{
 			System.out.println("save map");
 	        saveMap();
 		}
+		if(c=='p'){
+			System.out.print("print localized robot position\n");
+			for(int i =0 ; i < otherBodyForRenderList.size(); i++){
+				Point2D body = otherBodyForRenderList.get(i);
+				Point2D nose = otherNoseForRenderList.get(i);
+				System.out.printf("%d : body(%f, %f), nose(%f,%f)\n",i, body.getX(),body.getY(), nose.getX(),nose.getY()); 
+						
+			}
+		}
 	
 	
 	}
-	
+
 	@Override
 	public void update(GameContainer gc, int delta) throws SlickException {
 		if (Mouse.isButtonDown(0)) {

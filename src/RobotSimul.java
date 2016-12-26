@@ -39,7 +39,7 @@ public class RobotSimul extends BasicGame {
 	float rotateValue = (float)(-Math.PI*2.0/16.0);
 	
 	float moveError = moveValue * 0.4f;
-	float rotateError = moveValue * 0.4f;
+	float rotateError = moveValue * 0.2f;
 	
 	float obsMoveError = moveValue * 0.01f; //observing other robot error
 	float obsRotateError = moveValue * 0.01f;
@@ -90,13 +90,31 @@ public class RobotSimul extends BasicGame {
 	}
 	
 	public void sendSample(int robotIdx, List<Point2D> sampleList){
+		int robotSize = robotList.size();
+		ArrayList<AffineTransform> relativeAFList = new ArrayList<AffineTransform>();		
+		
+		System.out.print("pre sendrelative  rbsize : " + robotSize);
+		for(int i=0 ;i<robotSize; i++){
+			AffineObject robot = robotList.get(i);
+			AffineTransform relativeAffine = (AffineTransform)masterRobot.t.clone();
+			try {
+				relativeAffine.invert();
+			} catch (NoninvertibleTransformException e) {
+				e.printStackTrace();
+			}
+			relativeAffine.concatenate(robot.t);
+			
+			relativeAFList.add(relativeAffine);
+		}
+		
 		 try 
          {
              ObjectOutputStream objectOutput = new ObjectOutputStream(socket.getOutputStream());
              objectOutput.writeUTF("sample");
              objectOutput.writeInt(robotIdx);
-             objectOutput.writeObject(sampleList);               
-             System.out.println("send ok : " + sampleList.toString());
+             objectOutput.writeObject(sampleList);
+             objectOutput.writeObject(relativeAFList);
+             System.out.println("send sample : " + sampleList.toString()+"/" + relativeAFList.size());
          } 
          catch (IOException e) 
          {
@@ -105,6 +123,10 @@ public class RobotSimul extends BasicGame {
 	}
 	
 	public void sendMove(int robotIdx, float move, float rotate){
+		if (robotIdx != 0){
+			return;
+		}
+		//no needs
 		 try 
         {
             ObjectOutputStream objectOutput = new ObjectOutputStream(socket.getOutputStream());
@@ -120,34 +142,6 @@ public class RobotSimul extends BasicGame {
         } 
 	}
 	
-	public void sendRelatvie(){
-		int robotSize = robotList.size();
-		ArrayList<AffineTransform> relativeAFList = new ArrayList<AffineTransform>();
-		for(int i=1 ;i<robotSize; i++){
-			AffineObject robot = robotList.get(i);
-			AffineTransform relativeAffine = (AffineTransform)masterRobot.t.clone();
-			try {
-				relativeAffine.invert();
-			} catch (NoninvertibleTransformException e) {
-				e.printStackTrace();
-			}
-			relativeAffine.concatenate(robot.t);
-			relativeAFList.add(relativeAffine);
-		}
-		
-		 try 
-	        {
-	            ObjectOutputStream objectOutput = new ObjectOutputStream(socket.getOutputStream());
-	            objectOutput.writeUTF("relative");
-	            objectOutput.writeObject(relativeAFList);
-	                           
-	            System.out.println("send relative");
-	        } 
-	        catch (IOException e) 
-	        {
-	            e.printStackTrace();
-	        }
-	}
 	
 	public Point2D rayCast(float startx, float starty, float diffx, float diffy, Graphics g, int steplimit, GameContainer gc) {
 		float dx = startx;
@@ -321,6 +315,12 @@ public class RobotSimul extends BasicGame {
 				
 		//draw_master robot
 		drawRobot(g, masterRobot);
+		int idx = 0;
+		for(AffineObject robot : robotList ){
+			drawRobot(g, robot);
+			g.drawString(""+idx, (float)robot.position.getX(),(float)robot.position.getY());			
+			idx +=1;
+		}
 		
 		
 		for(Point2D sample : sampleForRender){
@@ -421,6 +421,7 @@ public class RobotSimul extends BasicGame {
 	public AffineObject initRobot(double d, double e){
 		AffineObject robot_affine = new AffineObject(AffineTransform.getTranslateInstance(d, e));
 		robotList.add(robot_affine);
+		sendRobotInit(robot_affine.position);
 		return robot_affine;
 	}
 	
@@ -447,10 +448,22 @@ public class RobotSimul extends BasicGame {
 	        saveMap();
 		}
 		if(c=='n'){
+			//next
+			
 			robotIdx = (robotIdx+1)%robotList.size();
+			System.out.println("selectNextRobot" + robotIdx + "/" + robotList.size());
 			currRobot = robotList.get(robotIdx);
-			System.out.println("selectNextRobot");
 		}
+		if(c=='p'){
+			//print 
+			for(int i = 0; i < robotList.size(); i++){
+				AffineObject robot = robotList.get(i);
+				System.out.printf("%d : body(%f, %f), nose(%f,%f)\n", i,
+						robot.position.getX(), robot.position.getY(),
+						robot.nose_position.getX(), robot.nose_position.getY());
+			}
+		}
+		
 		
 		boolean obs;
 		if (robotList.size() ==1 ){
@@ -498,10 +511,6 @@ public class RobotSimul extends BasicGame {
 		
 		if(Keyboard.isKeyDown(Keyboard.KEY_SPACE)){
 			LinkedList<Point2D> results = sampleAround(gameContainer, currRobot);
-			//sampleForRender = new LinkedList<Point2D>();
-			sendSample(robotIdx, results);
-			//System.out.println("robot_actual : " + currRobot.t.toString());
-			//System.out.println("robot_actual : " + currRobot.position.toString());
 			for(Point2D result : results){
 				if(result != null){
 					currRobot.t.transform(result, result);
@@ -509,12 +518,28 @@ public class RobotSimul extends BasicGame {
 				//sampleForRender.add(result);
 			}
 			sampleForRender = results;
-			System.out.println("sample for render : " + sampleForRender.toString());
+			
+			LinkedList<Point2D> results2 = sampleAround(gameContainer, masterRobot);
+			sendSample(robotIdx, results2);
+			System.out.println("sample for render : " + sampleForRender.size());
 			
 			
 		}
 	
 	}
+	
+	
+	@Override
+	public void mouseClicked(int button, int x, int y, int clickCount) {
+		super.mouseClicked(button, x, y, clickCount);
+		System.out.printf("%d, %d, %d, %d\n", button, x, y, clickCount);
+		
+		if(button ==2){
+			initRobot(x,y);
+		}
+		
+	}
+	
 	
 	@Override
 	public void update(GameContainer gc, int delta) throws SlickException {
@@ -597,17 +622,7 @@ public class RobotSimul extends BasicGame {
 		goX = Mouse.getX();
 		goY = gc.getHeight() - Mouse.getY();
 		
-		if (Mouse.isButtonDown(1)) {
-			if (reactMiddle){
-				reactMiddle = false;	
-			}
-			if(reactMiddle){
-				initRobot(Mouse.getX(), Mouse.getY());
-				reactMiddle = true;
-			}
-			
-		}
-		
+
 
 
 		

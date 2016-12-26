@@ -283,16 +283,16 @@ public class RemoteSimul extends BasicGame{
 
 		Color probPosColor = Color.gray;
 		probPosColor.a=0.2f;
-		g.setColor(probPosColor);
-		if(renderSampleFromProb){
-			synchronized(sampleFromProbForRender){
-				for(Point2D sample : sampleFromProbForRender){
-					if (sample !=null){
-						renderOval(g, sample,sampleOvalSize);
-					}	
-				}
-			}
-		}
+//		g.setColor(probPosColor);
+//		if(renderSampleFromProb){
+//			synchronized(sampleFromProbForRender){
+//				for(Point2D sample : sampleFromProbForRender){
+//					if (sample !=null){
+//						renderOval(g, sample,sampleOvalSize);
+//					}	
+//				}
+//			}
+//		}
 		
 		double sumProbX = 0;
 		double sumProbY = 0;
@@ -338,7 +338,12 @@ public class RemoteSimul extends BasicGame{
 			Point2D  nose = otherNoseForRenderList.get(i);
 			Point2D body = otherBodyForRenderList.get(i);
 			renderOval(g, new Point2D.Double(body.getX(), body.getY()), robotOvalSize);
-			g.drawLine((float)body.getX(),(float)body.getY(),(float)nose.getX(),(float)nose.getY());
+			float noseSize = 10f;
+			
+			float newNoseX = ((float)nose.getX()-(float)body.getX())*noseSize + (float)body.getX();
+			float newNoseY = ((float)nose.getY()-(float)body.getY())*noseSize + (float)body.getY();
+			g.drawLine((float)body.getX(),(float)body.getY(),newNoseX, newNoseY);
+			//renderOval(g, new Point2D.Double(nose.getX(),nose.getY()), robotOvalSize/2);
 			g.drawString(""+i, (float)body.getX(), (float)body.getY());
 		}
 		
@@ -619,7 +624,9 @@ public class RemoteSimul extends BasicGame{
 			for(int i =0 ; i < otherBodyForRenderList.size(); i++){
 				Point2D body = otherBodyForRenderList.get(i);
 				Point2D nose = otherNoseForRenderList.get(i);
-				System.out.printf("%d : body(%f, %f), nose(%f,%f)\n",i, body.getX(),body.getY(), nose.getX(),nose.getY()); 
+				System.out.printf("%d : body(%f, %f), nose(%f,%f),: \n"
+						,i, body.getX(),body.getY(), nose.getX(),nose.getY()); 
+				
 						
 			}
 		}
